@@ -92,8 +92,14 @@ function buildDayPlan(day: DayId, dayMatches: SetMatch[]): DayPlan {
   return { day, primary, conflicts, gaps };
 }
 
-export function buildPlan(picks: PrioritizedArtist[]): Plan {
+export function buildPlan(picks: PrioritizedArtist[], pinnedSetIds: Set<string> = new Set()): Plan {
   const matches = matchSets(picks);
+  // Pinned sets get -1 priority (highest) so they always win conflicts.
+  if (pinnedSetIds.size > 0) {
+    for (const m of matches) {
+      if (pinnedSetIds.has(m.set.id)) m.topPriority = -1;
+    }
+  }
   const byDay = {
     friday: matches.filter((m) => m.set.day === "friday"),
     saturday: matches.filter((m) => m.set.day === "saturday"),

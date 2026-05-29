@@ -469,6 +469,91 @@ input[type="text"]:focus { border-color: var(--accent-2); }
   padding-right: 20px;
 }
 
+/* === Group / Friends === */
+.friend-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.friend-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  gap: 4px;
+}
+.friend-chip.you {
+  background: linear-gradient(135deg, rgba(255,59,107,0.18), rgba(110,231,255,0.08));
+  border-color: var(--accent);
+}
+.overlap-row {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.overlap-bar {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(110,231,255,0.18), rgba(110,231,255,0.05));
+  z-index: 0;
+}
+.overlap-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.overlap-name { font-weight: 600; font-size: 14px; }
+.overlap-count { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* === Info cards === */
+.info-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+.info-card-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+.stage-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+
+/* === Wandering mode === */
+.wander-row {
+  display: flex;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+/* === Pinned set === */
+.timeline-item.pinned {
+  border-color: var(--warning);
+  background: linear-gradient(135deg, rgba(255,179,71,0.08), rgba(255,179,71,0.02));
+}
+
 @media (max-width: 600px) {
   .container { padding: 16px 14px 80px; }
   .timeline-item { grid-template-columns: 64px 1fr; gap: 8px; padding: 10px 12px; }

@@ -15,9 +15,25 @@ import { buildPlan, PrioritizedArtist } from "@/lib/optimizer";
 import { Lang, t } from "@/lib/i18n";
 import { buildShareUrl, decodePicksFromHash } from "@/lib/share";
 import { buildIcs, downloadIcs } from "@/lib/ics";
-import { activeDay, currentMinutes, splitByNow } from "@/lib/now";
+import { activeDay, currentMinutes, splitByNow, setsPlayingNow } from "@/lib/now";
+import {
+  loadNotifPrefs,
+  saveNotifPrefs,
+  requestNotificationPermission,
+  scheduleAll,
+  NotifPrefs,
+} from "@/lib/notifications";
+import {
+  loadGroup,
+  saveGroup,
+  parseSharedUrl,
+  computeOverlap,
+  FriendPlan,
+} from "@/lib/groups";
 
-type Tab = "pick" | "discover" | "now" | "plan" | "all";
+type Tab = "pick" | "discover" | "now" | "plan" | "group" | "all" | "info";
+
+const PINNED_KEY = "intents26_pinned_v1";
 
 const STORAGE_KEY = "intents26_picks_v1";
 const LANG_KEY = "intents26_lang_v1";
@@ -45,14 +61,18 @@ function stagePill(stageId: string) {
 function SetRow({
   m,
   lang,
+  pinned,
+  onTogglePin,
 }: {
   m: { set: FestivalSet; matchedArtists: string[] };
   lang: Lang;
+  pinned?: boolean;
+  onTogglePin?: (id: string) => void;
 }) {
   const s = m.set;
   const dur = toMinutes(s.end) - toMinutes(s.start);
   return (
-    <div className="timeline-item">
+    <div className={`timeline-item ${pinned ? "pinned" : ""}`}>
       <div className="time">
         {s.start} – {s.end === "24:00" ? "00:00" : s.end}
         <span className="duration">{durationLabel(dur, lang)}</span>
@@ -69,6 +89,21 @@ function SetRow({
               ★ {a}
             </span>
           ))}
+          {pinned && (
+            <span className="matched" style={{ background: "rgba(255,179,71,0.15)", color: "var(--warning)", border: "1px solid rgba(255,179,71,0.4)" }}>
+              🔒 {lang === "no" ? "Låst" : "Locked"}
+            </span>
+          )}
+          {onTogglePin && (
+            <button
+              className="ghost"
+              onClick={() => onTogglePin(s.id)}
+              style={{ fontSize: 11, padding: "2px 8px", marginLeft: 6 }}
+              title={pinned ? (lang === "no" ? "Lås opp" : "Unlock") : (lang === "no" ? "Lås" : "Lock")}
+            >
+              {pinned ? "🔓" : "🔒"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -129,6 +164,39 @@ export default function Page() {
   // Share state — show "Copied!" briefly after share click
   const [justShared, setJustShared] = useState(false);
 
+  // Pinned set IDs — locked winners that override priority-based conflict resolution.
+  const [pinnedSetIds, setPinnedSetIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PINNED_KEY);
+      if (raw) setPinnedSetIds(new Set(JSON.parse(raw)));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem(PINNED_KEY, JSON.stringify(Array.from(pinnedSetIds)));
+    } catch {}
+  }, [pinnedSetIds]);
+
+  // Notifications state
+  const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ enabled: false, minutesBefore: 10 });
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
+  const [notifCount, setNotifCount] = useState(0);
+  useEffect(() => {
+    setNotifPrefs(loadNotifPrefs());
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotifPermission(Notification.permission);
+    }
+  }, []);
+
+  // Friends group state
+  const [group, setGroup] = useState<FriendPlan[]>([]);
+  const [friendName, setFriendName] = useState("");
+  const [friendUrl, setFriendUrl] = useState("");
+  const [friendError, setFriendError] = useState<string | null>(null);
+  useEffect(() => { setGroup(loadGroup()); }, []);
+  useEffect(() => { saveGroup(group); }, [group]);
+
   const allArtists = useMemo(() => uniqueArtists(), []);
   const visibleArtists = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -141,7 +209,7 @@ export default function Page() {
     [picks]
   );
 
-  const plan = useMemo(() => buildPlan(prioritized), [prioritized]);
+  const plan = useMemo(() => buildPlan(prioritized, pinnedSetIds), [prioritized, pinnedSetIds]);
 
   // Discover queue: artists not yet picked AND not yet skipped.
   const discoverQueue = useMemo(() => {
@@ -241,6 +309,76 @@ export default function Page() {
   const todayId = nowDate ? activeDay(nowDate) : null;
   const nowMins = nowDate ? currentMinutes(nowDate) : 0;
   const nowSplit = todayId ? splitByNow(plan[todayId].primary, nowMins) : null;
+  const wanderingSets = todayId && nowSplit && !nowSplit.current
+    ? setsPlayingNow(todayId, nowMins).slice(0, 8)
+    : [];
+
+  // Pin/unpin handlers
+  const togglePin = (setId: string) => {
+    setPinnedSetIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(setId)) next.delete(setId);
+      else next.add(setId);
+      return next;
+    });
+  };
+
+  // Schedule notifications when plan or prefs change
+  useEffect(() => {
+    if (!notifPrefs.enabled) {
+      setNotifCount(0);
+      return;
+    }
+    const all = [...plan.friday.primary, ...plan.saturday.primary, ...plan.sunday.primary];
+    const count = scheduleAll(all, notifPrefs);
+    setNotifCount(count);
+  }, [plan, notifPrefs]);
+
+  const handleEnableNotifs = async () => {
+    const perm = await requestNotificationPermission();
+    setNotifPermission(perm);
+    if (perm === "granted") {
+      const next = { ...notifPrefs, enabled: true };
+      setNotifPrefs(next);
+      saveNotifPrefs(next);
+    }
+  };
+  const handleDisableNotifs = () => {
+    const next = { ...notifPrefs, enabled: false };
+    setNotifPrefs(next);
+    saveNotifPrefs(next);
+  };
+  const handleNotifMinChange = (m: number) => {
+    const next = { ...notifPrefs, minutesBefore: m };
+    setNotifPrefs(next);
+    saveNotifPrefs(next);
+  };
+  const handleNotifTest = () => {
+    if (notifPermission === "granted") {
+      try {
+        new Notification("Test 🔔", { body: "Notifications are working!", icon: "/icon.svg" });
+      } catch {}
+    }
+  };
+
+  // Group handlers
+  const handleAddFriend = () => {
+    setFriendError(null);
+    const picks = parseSharedUrl(friendUrl);
+    if (!picks || picks.length === 0) {
+      setFriendError(lang === "no" ? "Kunne ikke lese URL-en." : "Couldn't parse the URL.");
+      return;
+    }
+    const name = friendName.trim() || `Friend ${group.length + 1}`;
+    setGroup((g) => [...g, { name, picks }]);
+    setFriendName("");
+    setFriendUrl("");
+  };
+  const handleRemoveFriend = (idx: number) => {
+    setGroup((g) => g.filter((_, i) => i !== idx));
+  };
+
+  const overlap = useMemo(() => computeOverlap(picks, group), [picks, group]);
 
   const togglePick = (name: string) => {
     setPicks((p) => (p.includes(name) ? p.filter((x) => x !== name) : [...p, name]));
@@ -302,8 +440,14 @@ export default function Page() {
         <button className={`tab ${tab === "plan" ? "active" : ""}`} onClick={() => setTab("plan")}>
           {t("tabPlan", lang)}
         </button>
+        <button className={`tab ${tab === "group" ? "active" : ""}`} onClick={() => setTab("group")}>
+          {t("tabGroup", lang)} {group.length > 0 && `(${group.length + 1})`}
+        </button>
         <button className={`tab ${tab === "all" ? "active" : ""}`} onClick={() => setTab("all")}>
           {t("tabAll", lang)}
+        </button>
+        <button className={`tab ${tab === "info" ? "active" : ""}`} onClick={() => setTab("info")}>
+          {t("tabInfo", lang)}
         </button>
       </div>
 
@@ -477,6 +621,25 @@ export default function Page() {
                 </div>
               )}
 
+              {wanderingSets.length > 0 && (
+                <div style={{ marginTop: 24 }}>
+                  <div className="section-label">{t("wanderingMode", lang)}</div>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {wanderingSets.map((s) => (
+                      <div key={s.id} className="wander-row">
+                        <span className="stage-pill" style={{ background: STAGES[s.stageId]?.color }}>
+                          {STAGES[s.stageId]?.name}
+                        </span>
+                        <span style={{ flex: 1, fontSize: 14, marginLeft: 8 }}>{s.title}</span>
+                        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                          {s.start}–{s.end === "24:00" ? "00:00" : s.end}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {nowSplit.past.length > 0 && (
                 <details style={{ marginTop: 18 }}>
                   <summary style={{ cursor: "pointer", color: "var(--text-dim)", fontSize: 13 }}>
@@ -624,7 +787,7 @@ export default function Page() {
                     const gap = next ? toMinutes(next.set.start) - toMinutes(m.set.end) : 0;
                     return (
                       <div key={m.set.id}>
-                        <SetRow m={m} lang={lang} />
+                        <SetRow m={m} lang={lang} pinned={pinnedSetIds.has(m.set.id)} onTogglePin={togglePin} />
                         {next && gap >= 5 && (
                           <div className="gap">
                             ↓ {t("gapWord", lang)}: {gap} {t("minWord", lang)}{" "}
@@ -663,6 +826,15 @@ export default function Page() {
                         {t("conflictLostTo", lang)}: <strong>{c.lostTo.set.title}</strong> ·{" "}
                         {STAGES[c.lostTo.set.stageId]?.name} · {c.lostTo.set.start}–{c.lostTo.set.end}
                       </div>
+                      <div style={{ marginTop: 10 }}>
+                        <button
+                          className="primary"
+                          onClick={() => togglePin(c.dropped.set.id)}
+                          style={{ fontSize: 13 }}
+                        >
+                          {t("showWinner", lang)}: {c.dropped.set.title.length > 22 ? c.dropped.set.title.slice(0, 22) + "…" : c.dropped.set.title}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -691,6 +863,228 @@ export default function Page() {
                 </a>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "group" && (
+        <div className="section">
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ margin: "0 0 6px" }}>{t("addFriendPlan", lang)}</h2>
+            <div style={{ color: "var(--text-dim)", fontSize: 13 }}>{t("noFriends", lang)}</div>
+          </div>
+          <div className="friend-form">
+            <input
+              type="text"
+              placeholder={t("friendName", lang)}
+              value={friendName}
+              onChange={(e) => setFriendName(e.target.value)}
+              style={{ maxWidth: 200 }}
+            />
+            <input
+              type="text"
+              placeholder={t("pasteFriendUrl", lang)}
+              value={friendUrl}
+              onChange={(e) => setFriendUrl(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button className="primary" onClick={handleAddFriend}>
+              {t("addFriend", lang)}
+            </button>
+          </div>
+          {friendError && (
+            <div style={{ color: "var(--accent)", fontSize: 13, marginTop: 8 }}>{friendError}</div>
+          )}
+
+          {group.length > 0 && (
+            <div style={{ marginTop: 22 }}>
+              <div className="section-label">
+                {t("totalMembers", lang)}: {group.length + 1} ({lang === "no" ? "deg + " : "you + "}{group.length})
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 22 }}>
+                <div className="friend-chip you">★ {lang === "no" ? "Du" : "You"} · {picks.length}</div>
+                {group.map((f, i) => (
+                  <div key={i} className="friend-chip">
+                    {f.name} · {f.picks.length}
+                    <button
+                      className="ghost"
+                      style={{ padding: "2px 6px", fontSize: 12, marginLeft: 4 }}
+                      onClick={() => handleRemoveFriend(i)}
+                      title={t("removeFriend", lang)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="section-label">{t("groupOverlap", lang)}</div>
+              <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 12 }}>
+                {t("groupOverlapNote", lang)}
+              </div>
+              <div style={{ display: "grid", gap: 6 }}>
+                {overlap.map((o) => {
+                  const total = group.length + 1;
+                  const pct = (o.count / total) * 100;
+                  return (
+                    <div key={o.artist} className="overlap-row">
+                      <div className="overlap-bar" style={{ width: `${pct}%` }} />
+                      <div className="overlap-content">
+                        <span className="overlap-name">
+                          {o.byMe && <span style={{ color: "var(--accent-2)", marginRight: 6 }}>★</span>}
+                          {o.artist}
+                        </span>
+                        <span className="overlap-count">
+                          {o.count}/{total}{" "}
+                          {o.byFriends.length > 0 && (
+                            <span style={{ color: "var(--text-dim)", marginLeft: 6, fontSize: 11 }}>
+                              {o.byFriends.join(", ")}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "info" && (
+        <div className="section">
+          <h2>{t("practicalInfoTitle", lang)}</h2>
+
+          {/* Notifications */}
+          <div className="info-card">
+            <div className="info-card-title">🔔 {t("enableNotifs", lang)}</div>
+            {notifPermission === "denied" ? (
+              <div style={{ color: "var(--warning)", fontSize: 13 }}>{t("notifsDenied", lang)}</div>
+            ) : !notifPrefs.enabled || notifPermission !== "granted" ? (
+              <>
+                <div style={{ color: "var(--text-dim)", fontSize: 13, marginBottom: 10 }}>
+                  {t("notifsPermission", lang)}
+                </div>
+                <button className="primary" onClick={handleEnableNotifs}>
+                  {t("enableNotifs", lang)}
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ marginBottom: 10, fontSize: 14 }}>
+                  ✓ {notifCount} {t("notifsActive", lang)}
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, color: "var(--text-dim)" }}>{t("notifsBeforeLabel", lang)}:</span>
+                  {[5, 10, 15, 30].map((m) => (
+                    <button
+                      key={m}
+                      className={`chip ${notifPrefs.minutesBefore === m ? "selected" : ""}`}
+                      onClick={() => handleNotifMinChange(m)}
+                    >
+                      {m} {t("notifsMinBefore", lang)}
+                    </button>
+                  ))}
+                  <button onClick={handleNotifTest}>{t("notifTest", lang)}</button>
+                  <button className="ghost" onClick={handleDisableNotifs}>
+                    {lang === "no" ? "Skru av" : "Disable"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Stage info */}
+          <div className="info-card">
+            <div className="info-card-title">🎤 {t("stagesLabel", lang)}</div>
+            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+              {Object.values(STAGES).map((s) => (
+                <div key={s.id} className="stage-info-row">
+                  <span className="stage-pill" style={{ background: s.color }}>{s.name}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13 }}>{lang === "no" ? s.descNo : s.descEn}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>
+                      {s.genres?.join(" · ")}
+                      {s.host && <> · Host: {s.host}</>}
+                      {s.indoor && <> · {lang === "no" ? "Innendørs" : "Indoor"}</>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Practical info */}
+          <div className="info-card">
+            <div className="info-card-title">📍 {t("location", lang)}</div>
+            <div style={{ fontSize: 14 }}>
+              Intents Festival 2026 · 5–7 Juni · Oisterwijk, Nederland
+            </div>
+            <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <a
+                href="https://www.google.com/maps/search/?api=1&query=Intents+Festival+Oisterwijk"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <button>🗺 Google Maps</button>
+              </a>
+              <a
+                href="https://intentsfestival.nl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <button>↗ intentsfestival.nl</button>
+              </a>
+              <a
+                href="https://www.google.com/search?q=weather+Oisterwijk+juni+5"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <button>☀ {lang === "no" ? "Vær" : "Weather"}</button>
+              </a>
+            </div>
+          </div>
+
+          <div className="info-card">
+            <div className="info-card-title">🎒 {t("whatToBring", lang)}</div>
+            <ul style={{ paddingLeft: 20, lineHeight: 1.8, fontSize: 14, color: "var(--text)" }}>
+              {(lang === "no"
+                ? [
+                    "ID/pass (kreves for inngang)",
+                    "Festivalbillett (digital eller print)",
+                    "Powerbank — telefonen din dør fort",
+                    "Ørepropper (sjekk Loop / Eargasm)",
+                    "Regnjakke (Nederland i juni er uforutsigbart)",
+                    "Solbriller + solkrem",
+                    "Behagelig fottøy / støvler",
+                    "Lite kontant + bankkort",
+                    "Vannflaske (kan fylles på)",
+                    "Sukkertøy / energi-snacks",
+                  ]
+                : [
+                    "ID / passport (required at entry)",
+                    "Festival ticket (digital or printed)",
+                    "Power bank — phone dies fast",
+                    "Earplugs (Loop / Eargasm recommended)",
+                    "Rain jacket (Dutch June is unpredictable)",
+                    "Sunglasses + sunscreen",
+                    "Comfortable shoes / boots",
+                    "Small cash + bank card",
+                    "Refillable water bottle",
+                    "Snacks / sugar for energy",
+                  ]
+              ).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+
+          <div className="info-card">
+            <div className="info-card-title">⚙ {t("offlineReady", lang)}</div>
+            <div style={{ fontSize: 13, color: "var(--text-dim)" }}>
+              {lang === "no"
+                ? "Appen er installert som PWA og fungerer offline på festivalen. Du kan trygt åpne den selv om signalet er dårlig."
+                : "App is installed as a PWA and works offline at the festival. Open it safely even with poor signal."}
+            </div>
           </div>
         </div>
       )}

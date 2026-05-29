@@ -1,4 +1,4 @@
-import { DAYS, DayId, toMinutes } from "@/data/schedule";
+import { ALL_SETS, DAYS, DayId, FestivalSet, toMinutes } from "@/data/schedule";
 import { SetMatch } from "./optimizer";
 
 // Detect which festival day a given Date falls on (in Europe/Amsterdam),
@@ -50,4 +50,15 @@ export function splitByNow(matches: SetMatch[], nowMinutes: number): NowSplit {
     else upcoming.push(m);
   }
   return { past, current, upcoming };
+}
+
+// All sets playing right now on the given day across ALL stages — for "what's playing"
+// wandering mode when user has no plan for the moment.
+export function setsPlayingNow(day: DayId, nowMinutes: number): FestivalSet[] {
+  return ALL_SETS.filter((s) => {
+    if (s.day !== day) return false;
+    const start = toMinutes(s.start);
+    const end = toMinutes(s.end);
+    return start <= nowMinutes && nowMinutes < end;
+  });
 }

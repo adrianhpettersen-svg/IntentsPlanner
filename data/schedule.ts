@@ -10,6 +10,10 @@ export type Stage = {
   name: string;
   color: string; // tailwind-ish hex, used in the UI
   host?: string;
+  descNo?: string;
+  descEn?: string;
+  genres?: string[];
+  indoor?: boolean;
 };
 
 export type FestivalSet = {
@@ -31,18 +35,112 @@ export const DAYS: { id: DayId; labelEn: string; labelNo: string; date: string }
 
 // Stages — colors picked to match the timetable color coding.
 export const STAGES: Record<string, Stage> = {
-  mainstage: { id: "mainstage", name: "Mainstage", color: "#f5c400", host: "Villain" },
-  indoor_mainstage: { id: "indoor_mainstage", name: "Indoor Mainstage", color: "#3da6e0" },
-  dynamite: { id: "dynamite", name: "Dynamite", color: "#8a8d92" },
-  fanaticz: { id: "fanaticz", name: "Fanaticz", color: "#d23a3a" },
-  outrageous: { id: "outrageous", name: "Outrageous", color: "#e84cc7" },
-  revive: { id: "revive", name: "Revive", color: "#7a5cc2" },
-  energetic: { id: "energetic", name: "Energetic", color: "#19b39a" },
-  karnaval: { id: "karnaval", name: "Karnaval Festival Feestcafé", color: "#ec8c2b" },
-  boombox: { id: "boombox", name: "Boombox", color: "#7fc24a" },
-  melodica: { id: "melodica", name: "Melodica", color: "#5fbf6b" },
-  uiltje: { id: "uiltje", name: "Uiltje", color: "#9a7c46" },
-  intentscity: { id: "intentscity", name: "Intentscity", color: "#b6a1d8" },
+  mainstage: {
+    id: "mainstage",
+    name: "Mainstage",
+    color: "#f5c400",
+    host: "Villain",
+    descNo: "Den store hovedscenen ute. Hardstyle og de største navnene.",
+    descEn: "The big outdoor mainstage. Hardstyle and the biggest names.",
+    genres: ["Hardstyle", "Euphoric Hardstyle", "Rawstyle"],
+  },
+  indoor_mainstage: {
+    id: "indoor_mainstage",
+    name: "Indoor Mainstage",
+    color: "#3da6e0",
+    descNo: "Den store innendørs scenen. Komfort hvis været er dårlig.",
+    descEn: "Large indoor stage. Shelter from weather, full sound.",
+    genres: ["Hardstyle", "Rawstyle"],
+    indoor: true,
+  },
+  dynamite: {
+    id: "dynamite",
+    name: "Dynamite",
+    color: "#8a8d92",
+    host: "MC Robs",
+    descNo: "Uptempo og raw hardcore. Hardt og fort.",
+    descEn: "Uptempo and raw hardcore. Hard and fast.",
+    genres: ["Uptempo", "Raw Hardcore"],
+  },
+  fanaticz: {
+    id: "fanaticz",
+    name: "Fanaticz",
+    color: "#d23a3a",
+    host: "MC Livid",
+    descNo: "Frenchcore, terror og ekstrem hardcore.",
+    descEn: "Frenchcore, terror and extreme hardcore.",
+    genres: ["Frenchcore", "Terror", "Extratone"],
+  },
+  outrageous: {
+    id: "outrageous",
+    name: "Outrageous",
+    color: "#e84cc7",
+    host: "MC Da Syndrome",
+    descNo: "Klassiske hardstyle-spillere og temasett.",
+    descEn: "Classic hardstyle DJs and themed sets.",
+    genres: ["Hardstyle Classics", "Early Hardstyle"],
+  },
+  revive: {
+    id: "revive",
+    name: "Revive",
+    color: "#7a5cc2",
+    host: "MC Da Syndrome",
+    descNo: "Mer melodisk og euforisk hardstyle.",
+    descEn: "More melodic and euphoric hardstyle.",
+    genres: ["Euphoric Hardstyle", "Melodic"],
+  },
+  energetic: {
+    id: "energetic",
+    name: "Energetic",
+    color: "#19b39a",
+    host: "MC Barricade",
+    descNo: "Nederlandsk feststemning og høy puls.",
+    descEn: "Dutch party vibes and high BPM.",
+    genres: ["Hard Dance", "Hardstyle"],
+  },
+  karnaval: {
+    id: "karnaval",
+    name: "Karnaval Festival Feestcafé",
+    color: "#ec8c2b",
+    descNo: "Dutch carnival-stemning. Sjøl-syng-med-låter, polonaise, øl.",
+    descEn: "Dutch carnival vibes. Singalongs, polonaise, beers.",
+    genres: ["Carnival", "Dutch Pop", "Schlager"],
+  },
+  boombox: {
+    id: "boombox",
+    name: "Boombox",
+    color: "#7fc24a",
+    host: "MC Barricade",
+    descNo: "Mindre intim scene. DJ Contest-vinnere og nye navn.",
+    descEn: "Smaller intimate stage. DJ Contest winners and rising names.",
+    genres: ["Hardstyle", "Uptempo"],
+  },
+  melodica: {
+    id: "melodica",
+    name: "Melodica",
+    color: "#5fbf6b",
+    host: "MC Synergy",
+    descNo: "Melodisk hardstyle og melodisk hardcore.",
+    descEn: "Melodic hardstyle and melodic hardcore.",
+    genres: ["Melodic Hardstyle", "Euphoric Hardstyle"],
+  },
+  uiltje: {
+    id: "uiltje",
+    name: "Uiltje",
+    color: "#9a7c46",
+    descNo: "Liten skjult scene. Eksperimentelt og rart.",
+    descEn: "Small hidden stage. Experimental and weird.",
+    genres: ["Experimental", "Underground"],
+  },
+  intentscity: {
+    id: "intentscity",
+    name: "Intentscity",
+    color: "#b6a1d8",
+    host: "MC Barricade",
+    descNo: "Tema-scene med spesial-sett og album-showcases.",
+    descEn: "Themed stage with special sets and album showcases.",
+    genres: ["Hardstyle", "Uptempo"],
+  },
 };
 
 // Convert "HH:MM" -> minutes from midnight. "24:00" = 1440.

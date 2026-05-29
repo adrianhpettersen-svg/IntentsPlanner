@@ -91,6 +91,53 @@ export const STRINGS = {
   },
   ofWord: { no: "av", en: "of" },
   playsAt: { no: "Spiller på", en: "Plays on" },
+  tabGroup: { no: "Gjeng", en: "Group" },
+  tabInfo: { no: "Info", en: "Info" },
+  addFriendPlan: { no: "Legg til vennens plan", en: "Add friend's plan" },
+  pasteFriendUrl: {
+    no: "Lim inn delt URL eller hash (#p=...)",
+    en: "Paste shared URL or hash (#p=...)",
+  },
+  friendName: { no: "Navn på vennen", en: "Friend's name" },
+  addFriend: { no: "Legg til", en: "Add" },
+  removeFriend: { no: "Fjern", en: "Remove" },
+  noFriends: {
+    no: "Be vennene dine om å sende deg sin delte plan-URL fra \"Din plan\" → \"Del plan\".",
+    en: "Ask your friends to send their plan-share URL from \"Your plan\" → \"Share plan\".",
+  },
+  groupOverlap: { no: "Hvem vil se hvem", en: "Who wants who" },
+  groupOverlapNote: {
+    no: "Sortert: artister flest har valgt øverst. ★ = du har valgt.",
+    en: "Sorted: artists most people picked at the top. ★ = you picked.",
+  },
+  totalMembers: { no: "Antall i gjengen", en: "Group size" },
+  enableNotifs: { no: "Aktiver varsler", en: "Enable notifications" },
+  notifsPermission: {
+    no: "Tillat varsler for å få beskjed før favorittsettene dine.",
+    en: "Allow notifications to get a heads-up before your favorite sets.",
+  },
+  notifsActive: { no: "varsler planlagt", en: "notifications scheduled" },
+  notifsDenied: {
+    no: "Varsler er blokkert. Skru på i nettleserinnstillingene for å aktivere.",
+    en: "Notifications are blocked. Enable in browser settings to activate.",
+  },
+  notifsBeforeLabel: { no: "Varsle", en: "Notify" },
+  notifsMinBefore: { no: "min før", en: "min before" },
+  practicalInfoTitle: { no: "Praktisk info", en: "Practical info" },
+  whatToBring: { no: "Hva ta med", en: "What to bring" },
+  openingHours: { no: "Åpningstider", en: "Opening hours" },
+  location: { no: "Sted", en: "Location" },
+  stagesLabel: { no: "Scener", en: "Stages" },
+  wanderingMode: { no: "Skjer akkurat nå på andre scener", en: "Right now on other stages" },
+  pinSet: { no: "Lås settet", en: "Lock set" },
+  unpinSet: { no: "Lås opp", en: "Unlock" },
+  pinnedHint: {
+    no: "🔒 Låst — vinner alltid ved konflikt",
+    en: "🔒 Locked — always wins conflicts",
+  },
+  showWinner: { no: "Bytt vinneren", en: "Swap winner" },
+  offlineReady: { no: "Klar offline ✓", en: "Offline ready ✓" },
+  notifTest: { no: "Test", en: "Test" },
 } as const;
 
 export type StringKey = keyof typeof STRINGS;
