@@ -13,8 +13,11 @@ import {
 } from "@/data/schedule";
 import { buildPlan, PrioritizedArtist } from "@/lib/optimizer";
 import { Lang, t } from "@/lib/i18n";
+import { buildShareUrl, decodePicksFromHash } from "@/lib/share";
+import { buildIcs, downloadIcs } from "@/lib/ics";
+import { activeDay, currentMinutes, splitByNow } from "@/lib/now";
 
-type Tab = "pick" | "discover" | "plan" | "all";
+type Tab = "pick" | "discover" | "now" | "plan" | "all";
 
 const STORAGE_KEY = "intents26_picks_v1";
 const LANG_KEY = "intents26_lang_v1";
@@ -107,6 +110,25 @@ export default function Page() {
     try { localStorage.setItem(DISCOVER_IDX_KEY, String(discoverIdx)); } catch {}
   }, [discoverIdx]);
 
+  // Import shared plan from URL hash (#p=...)
+  const [importPrompt, setImportPrompt] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const decoded = decodePicksFromHash(window.location.hash);
+    if (decoded && decoded.length > 0) setImportPrompt(decoded);
+  }, []);
+
+  // Now Playing — recompute every minute.
+  const [nowDate, setNowDate] = useState<Date | null>(null);
+  useEffect(() => {
+    setNowDate(new Date());
+    const interval = setInterval(() => setNowDate(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Share state — show "Copied!" briefly after share click
+  const [justShared, setJustShared] = useState(false);
+
   const allArtists = useMemo(() => uniqueArtists(), []);
   const visibleArtists = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -177,6 +199,49 @@ export default function Page() {
     setDiscoverIdx(0);
   };
 
+  // Share / import handlers
+  const handleShare = async () => {
+    if (picks.length === 0) return;
+    const url = buildShareUrl(picks);
+    try {
+      await navigator.clipboard.writeText(url);
+      setJustShared(true);
+      setTimeout(() => setJustShared(false), 2000);
+    } catch {
+      window.prompt(t("sharePlan", lang), url);
+    }
+  };
+
+  const handleImport = (mode: "merge" | "replace") => {
+    if (!importPrompt) return;
+    if (mode === "replace") {
+      setPicks(importPrompt);
+    } else {
+      const merged = [...picks];
+      for (const p of importPrompt) {
+        if (!merged.find((x) => x.toLowerCase() === p.toLowerCase())) merged.push(p);
+      }
+      setPicks(merged);
+    }
+    setImportPrompt(null);
+    // Clear hash so reload doesn't re-prompt
+    if (typeof window !== "undefined") {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  };
+
+  const handleExportIcs = () => {
+    const allMatches = [...plan.friday.primary, ...plan.saturday.primary, ...plan.sunday.primary];
+    if (allMatches.length === 0) return;
+    const ics = buildIcs(allMatches);
+    downloadIcs("intents-2026-plan.ics", ics);
+  };
+
+  // Now playing computation
+  const todayId = nowDate ? activeDay(nowDate) : null;
+  const nowMins = nowDate ? currentMinutes(nowDate) : 0;
+  const nowSplit = todayId ? splitByNow(plan[todayId].primary, nowMins) : null;
+
   const togglePick = (name: string) => {
     setPicks((p) => (p.includes(name) ? p.filter((x) => x !== name) : [...p, name]));
   };
@@ -230,6 +295,10 @@ export default function Page() {
         <button className={`tab ${tab === "discover" ? "active" : ""}`} onClick={() => setTab("discover")}>
           {t("tabDiscover", lang)}
         </button>
+        <button className={`tab ${tab === "now" ? "active" : ""}`} onClick={() => setTab("now")}>
+          {t("tabNow", lang)}
+          {nowSplit?.current && <span className="live-dot" />}
+        </button>
         <button className={`tab ${tab === "plan" ? "active" : ""}`} onClick={() => setTab("plan")}>
           {t("tabPlan", lang)}
         </button>
@@ -237,6 +306,28 @@ export default function Page() {
           {t("tabAll", lang)}
         </button>
       </div>
+
+      {importPrompt && (
+        <div className="import-banner">
+          <div style={{ flex: 1 }}>
+            <strong>{t("importFound", lang)}</strong>
+            <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 4 }}>
+              {importPrompt.length} {lang === "no" ? "artister i den delte planen" : "artists in shared plan"}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button className="primary" onClick={() => handleImport("merge")}>
+              {t("importMerge", lang)}
+            </button>
+            <button onClick={() => handleImport("replace")}>
+              {t("importReplace", lang)}
+            </button>
+            <button className="ghost" onClick={() => setImportPrompt(null)}>
+              {t("importCancel", lang)}
+            </button>
+          </div>
+        </div>
+      )}
 
       {tab === "pick" && (
         <div className="section">
@@ -335,6 +426,74 @@ export default function Page() {
         </div>
       )}
 
+      {tab === "now" && (
+        <div className="section">
+          {!todayId ? (
+            <div className="muted-empty">{t("noActiveDay", lang)}</div>
+          ) : !nowSplit || (nowSplit.past.length === 0 && nowSplit.upcoming.length === 0 && !nowSplit.current) ? (
+            <div className="muted-empty">{t("noPicksToday", lang)}</div>
+          ) : (
+            <>
+              <div style={{ marginBottom: 14 }}>
+                <div className="kicker" style={{ background: "rgba(255,59,107,0.15)", color: "var(--accent)" }}>
+                  ● LIVE · {lang === "no" ? DAYS.find((d) => d.id === todayId)?.labelNo : DAYS.find((d) => d.id === todayId)?.labelEn}
+                </div>
+                <div style={{ color: "var(--text-dim)", fontSize: 13, marginTop: 6 }}>
+                  {nowDate?.toLocaleTimeString(lang === "no" ? "nb-NO" : "en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "Europe/Amsterdam",
+                  })} · Europe/Amsterdam
+                </div>
+              </div>
+
+              {nowSplit.current && (
+                <div style={{ marginBottom: 22 }}>
+                  <div className="section-label">▶ {t("nowPlaying", lang)} · {t("rightNow", lang)}</div>
+                  <div className="now-card live">
+                    <SetRow m={nowSplit.current} lang={lang} />
+                  </div>
+                </div>
+              )}
+
+              {nowSplit.upcoming.length > 0 && (
+                <div style={{ marginBottom: 22 }}>
+                  <div className="section-label">{t("upNext", lang)}</div>
+                  <div className="timeline">
+                    {nowSplit.upcoming.slice(0, 4).map((m) => {
+                      const startsIn = toMinutes(m.set.start) - nowMins;
+                      return (
+                        <div key={m.set.id}>
+                          {startsIn > 0 && startsIn <= 60 && (
+                            <div className="starts-in">
+                              ⏱ {t("inMin", lang)} {startsIn} {t("minWord", lang)}
+                            </div>
+                          )}
+                          <SetRow m={m} lang={lang} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {nowSplit.past.length > 0 && (
+                <details style={{ marginTop: 18 }}>
+                  <summary style={{ cursor: "pointer", color: "var(--text-dim)", fontSize: 13 }}>
+                    ✓ {t("past", lang)} ({nowSplit.past.length})
+                  </summary>
+                  <div className="timeline" style={{ marginTop: 10, opacity: 0.5 }}>
+                    {nowSplit.past.map((m) => (
+                      <SetRow key={m.set.id} m={m} lang={lang} />
+                    ))}
+                  </div>
+                </details>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {tab === "discover" && (
         <div className="section">
           <div style={{ color: "var(--text-dim)", marginBottom: 14 }}>{t("discoverIntro", lang)}</div>
@@ -420,19 +579,29 @@ export default function Page() {
             <div className="muted-empty">{t("pickFirst", lang)}</div>
           ) : (
             <>
-              <div className="day-tabs">
-                {DAYS.map((d) => (
-                  <button
-                    key={d.id}
-                    className={`chip day-tab ${dayTab === d.id ? "active" : ""}`}
-                    onClick={() => setDayTab(d.id)}
-                  >
-                    {lang === "no" ? d.labelNo : d.labelEn}
-                    <span style={{ opacity: 0.6, marginLeft: 6 }}>
-                      {plan[d.id].primary.length}
-                    </span>
+              <div className="plan-toolbar">
+                <div className="day-tabs">
+                  {DAYS.map((d) => (
+                    <button
+                      key={d.id}
+                      className={`chip day-tab ${dayTab === d.id ? "active" : ""}`}
+                      onClick={() => setDayTab(d.id)}
+                    >
+                      {lang === "no" ? d.labelNo : d.labelEn}
+                      <span style={{ opacity: 0.6, marginLeft: 6 }}>
+                        {plan[d.id].primary.length}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button onClick={handleShare} title={t("sharePlan", lang)}>
+                    {justShared ? "✓ " + t("shareCopied", lang) : "🔗 " + t("sharePlan", lang)}
                   </button>
-                ))}
+                  <button onClick={handleExportIcs} title={t("exportIcsHint", lang)}>
+                    📅 .ics
+                  </button>
+                </div>
               </div>
 
               <div style={{ marginBottom: 12, color: "var(--text-dim)", fontSize: 13 }}>

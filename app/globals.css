@@ -398,10 +398,91 @@ input[type="text"]:focus { border-color: var(--accent-2); }
   color: var(--text-dim);
 }
 
+/* === Now playing === */
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: 6px;
+  animation: pulse 1.4s ease-in-out infinite;
+  box-shadow: 0 0 0 0 var(--accent);
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,107,0.6); }
+  50% { box-shadow: 0 0 0 5px rgba(255,59,107,0); }
+}
+.section-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.now-card.live .timeline-item {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(255,59,107,0.12), rgba(110,231,255,0.05));
+  box-shadow: 0 0 30px rgba(255,59,107,0.18);
+}
+.starts-in {
+  font-size: 12px;
+  color: var(--warning);
+  text-align: center;
+  padding: 4px 0 8px;
+  font-weight: 600;
+}
+
+/* === Import banner === */
+.import-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, rgba(110,231,255,0.12), rgba(255,59,107,0.08));
+  border: 1px solid rgba(110,231,255,0.4);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+/* === Plan toolbar === */
+.plan-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* === Sticky tab bar on mobile === */
+.tabs {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+  margin-left: -20px;
+  margin-right: -20px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
 @media (max-width: 600px) {
-  .timeline-item { grid-template-columns: 70px 1fr; }
+  .container { padding: 16px 14px 80px; }
+  .timeline-item { grid-template-columns: 64px 1fr; gap: 8px; padding: 10px 12px; }
+  .timeline-item .time { font-size: 13px; }
   .title { font-size: 22px; }
   .discover-name { font-size: 24px; }
   .discover-btn { width: 90px; padding: 12px 6px; }
   .discover-btn.back-btn { width: 60px; }
+  .grid-artists { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+  .artist-card { padding: 9px 10px; font-size: 13px; }
+  .header { gap: 8px; }
+  .kicker { font-size: 10px; }
+  .tab { padding: 10px 10px; font-size: 14px; }
+  .plan-toolbar { flex-direction: column; align-items: stretch; }
+  .day-tabs { justify-content: space-between; }
+  .day-tabs .chip { flex: 1; text-align: center; }
 }

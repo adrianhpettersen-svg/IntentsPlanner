@@ -1,9 +1,12 @@
 import { NextRequest } from "next/server";
+import { getOverrideUrl } from "@/data/spotify-overrides";
 
 // Resolve an artist name to their canonical Spotify profile URL via the
 // Spotify Web API (Client Credentials flow — no user auth needed).
 // Requires env vars SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.
 // Falls back to the /search URL if creds are missing or the lookup fails.
+//
+// First checks manual overrides in data/spotify-overrides.ts.
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
 const lookupCache = new Map<string, { url: string; cachedAt: number }>();
@@ -51,6 +54,10 @@ export async function GET(req: NextRequest) {
     if (wantRedirect) return Response.redirect(url, 302);
     return Response.json({ url, source, ...(matchedName ? { matchedName } : {}) });
   };
+  // 1. Manual override always wins.
+  const override = getOverrideUrl(name);
+  if (override) return respond(override, "override");
+
   const key = name.toLowerCase();
   const cached = lookupCache.get(key);
   if (cached && Date.now() - cached.cachedAt < ONE_DAY_MS) {
