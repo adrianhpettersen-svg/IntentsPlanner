@@ -550,6 +550,19 @@ export function uniqueArtists(sets: FestivalSet[] = ALL_SETS): string[] {
   return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
 }
 
+// Map of artist name (lowercased) -> set of day ids they appear on.
+export function artistsByDay(): Map<string, Set<DayId>> {
+  const m = new Map<string, Set<DayId>>();
+  for (const s of ALL_SETS) {
+    for (const a of s.artists) {
+      const key = a.toLowerCase();
+      if (!m.has(key)) m.set(key, new Set());
+      m.get(key)!.add(s.day);
+    }
+  }
+  return m;
+}
+
 export function spotifySearchUrl(artist: string): string {
   return `https://open.spotify.com/search/${encodeURIComponent(artist)}/artists`;
 }

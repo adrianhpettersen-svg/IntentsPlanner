@@ -92,6 +92,37 @@ function buildDayPlan(day: DayId, dayMatches: SetMatch[]): DayPlan {
   return { day, primary, conflicts, gaps };
 }
 
+export type DayStats = {
+  totalSetMinutes: number;
+  stagesVisited: number;
+  biggestBreakMinutes: number;
+  firstStart: string | null;
+  lastEnd: string | null;
+};
+
+export function dayStats(dayPlan: DayPlan): DayStats {
+  const sets = dayPlan.primary;
+  if (sets.length === 0) {
+    return { totalSetMinutes: 0, stagesVisited: 0, biggestBreakMinutes: 0, firstStart: null, lastEnd: null };
+  }
+  let totalSetMinutes = 0;
+  const stages = new Set<string>();
+  for (const m of sets) {
+    const end = m.set.end === "24:00" ? 1440 : Number(m.set.end.split(":")[0]) * 60 + Number(m.set.end.split(":")[1]);
+    const start = Number(m.set.start.split(":")[0]) * 60 + Number(m.set.start.split(":")[1]);
+    totalSetMinutes += end - start;
+    stages.add(m.set.stageId);
+  }
+  const biggestBreak = dayPlan.gaps.reduce((max, g) => Math.max(max, g.minutes), 0);
+  return {
+    totalSetMinutes,
+    stagesVisited: stages.size,
+    biggestBreakMinutes: biggestBreak,
+    firstStart: sets[0].set.start,
+    lastEnd: sets[sets.length - 1].set.end,
+  };
+}
+
 export function buildPlan(picks: PrioritizedArtist[], pinnedSetIds: Set<string> = new Set()): Plan {
   const matches = matchSets(picks);
   // Pinned sets get -1 priority (highest) so they always win conflicts.

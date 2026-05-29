@@ -7,11 +7,12 @@ import {
   DayId,
   FestivalSet,
   STAGES,
+  artistsByDay,
   spotifySearchUrl,
   toMinutes,
   uniqueArtists,
 } from "@/data/schedule";
-import { buildPlan, PrioritizedArtist } from "@/lib/optimizer";
+import { buildPlan, PrioritizedArtist, dayStats } from "@/lib/optimizer";
 import { Lang, t } from "@/lib/i18n";
 import { buildShareUrl, decodePicksFromHash } from "@/lib/share";
 import { buildIcs, downloadIcs } from "@/lib/ics";
@@ -198,11 +199,19 @@ export default function Page() {
   useEffect(() => { saveGroup(group); }, [group]);
 
   const allArtists = useMemo(() => uniqueArtists(), []);
+  const byDayMap = useMemo(() => artistsByDay(), []);
+  const [dayFilter, setDayFilter] = useState<DayId | "all">("all");
   const visibleArtists = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return allArtists;
-    return allArtists.filter((a) => a.toLowerCase().includes(q));
-  }, [allArtists, query]);
+    return allArtists.filter((a) => {
+      if (q && !a.toLowerCase().includes(q)) return false;
+      if (dayFilter !== "all") {
+        const days = byDayMap.get(a.toLowerCase());
+        if (!days || !days.has(dayFilter)) return false;
+      }
+      return true;
+    });
+  }, [allArtists, query, dayFilter, byDayMap]);
 
   const prioritized: PrioritizedArtist[] = useMemo(
     () => picks.map((name, i) => ({ name, priority: i })),
@@ -489,8 +498,25 @@ export default function Page() {
               </button>
             )}
             <span style={{ color: "var(--text-dim)", fontSize: 13 }}>
-              {picks.length} {t("selectedCount", lang)} / {allArtists.length}
+              {visibleArtists.length} / {allArtists.length} · {picks.length} {t("selectedCount", lang)}
             </span>
+          </div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            <button
+              className={`chip ${dayFilter === "all" ? "selected" : ""}`}
+              onClick={() => setDayFilter("all")}
+            >
+              {lang === "no" ? "Alle dager" : "All days"}
+            </button>
+            {DAYS.map((d) => (
+              <button
+                key={d.id}
+                className={`chip ${dayFilter === d.id ? "selected" : ""}`}
+                onClick={() => setDayFilter(d.id)}
+              >
+                {lang === "no" ? d.labelNo : d.labelEn}
+              </button>
+            ))}
           </div>
 
           {picks.length > 0 && (
@@ -776,6 +802,21 @@ export default function Page() {
                     · <span style={{ color: "var(--warning)" }}>{plan[dayTab].conflicts.length} {lang === "no" ? "konflikter" : "conflicts"}</span>
                   </>
                 )}
+                {(() => {
+                  const stats = dayStats(plan[dayTab]);
+                  if (stats.totalSetMinutes === 0) return null;
+                  const h = Math.floor(stats.totalSetMinutes / 60);
+                  const m = stats.totalSetMinutes % 60;
+                  return (
+                    <span style={{ marginLeft: 12 }}>
+                      · ⏱ {h}h {m}m {lang === "no" ? "musikk" : "music"} ·{" "}
+                      🎤 {stats.stagesVisited} {lang === "no" ? "scener" : "stages"}
+                      {stats.firstStart && stats.lastEnd && (
+                        <> · {stats.firstStart}–{stats.lastEnd === "24:00" ? "00:00" : stats.lastEnd}</>
+                      )}
+                    </span>
+                  );
+                })()}
               </div>
 
               {plan[dayTab].primary.length === 0 ? (
