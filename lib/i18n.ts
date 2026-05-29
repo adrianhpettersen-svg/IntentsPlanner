@@ -1,0 +1,62 @@
+export type Lang = "no" | "en";
+
+export const STRINGS = {
+  title: { no: "Intents Festival 2026 – Planner", en: "Intents Festival 2026 – Planner" },
+  subtitle: {
+    no: "Velg favorittartistene dine. Jeg lager den optimale ruten gjennom alle 10 scener.",
+    en: "Pick your favorite artists. I'll build the optimal route across all 10 stages.",
+  },
+  tabPick: { no: "Velg artister", en: "Pick artists" },
+  tabPlan: { no: "Din plan", en: "Your plan" },
+  tabAll: { no: "Alle artister", en: "All artists" },
+  searchArtists: { no: "Søk artist…", en: "Search artist…" },
+  selectedNone: { no: "Ingen artister valgt enda. Klikk på et navn over.", en: "No artists picked yet. Click a name above." },
+  selectedHeader: {
+    no: "Dine valg (klikk for å fjerne, øverst = høyest prioritet)",
+    en: "Your picks (click to remove, top = highest priority)",
+  },
+  clear: { no: "Nullstill", en: "Clear" },
+  pickFirst: { no: "Velg minst én artist for å se planen din.", en: "Pick at least one artist to see your plan." },
+  noSetsForDay: { no: "Ingen av dine artister spiller denne dagen.", en: "None of your artists play this day." },
+  conflictsHeader: { no: "Konflikter (samme tidspunkt – kunne ikke ta begge)", en: "Conflicts (same time slot – couldn't fit both)" },
+  conflictDropped: { no: "Hoppet over", en: "Skipped" },
+  conflictLostTo: { no: "til fordel for", en: "in favor of" },
+  gapWord: { no: "Pause", en: "Break" },
+  minWord: { no: "min", en: "min" },
+  movedToWord: { no: "Bytt til", en: "Move to" },
+  matchPlural: { no: "Du har valgt", en: "You picked" },
+  optimalRoute: { no: "Din optimale rute", en: "Your optimal route" },
+  selectedCount: { no: "valgt", en: "selected" },
+  spotifySearch: { no: "Spotify", en: "Spotify" },
+  language: { no: "Norsk", en: "English" },
+  allArtistsTip: {
+    no: "Alle artister i programmet. Klikk Spotify for å høre dem.",
+    en: "All artists in the lineup. Click Spotify to listen.",
+  },
+  whenWord: { no: "Når", en: "When" },
+  whoWord: { no: "Hvem", en: "Who" },
+  alsoPlaying: { no: "Også med", en: "Also on" },
+  conflictTip: {
+    no: "Tips: dra artister opp/ned i listen for å endre prioritet ved overlapp.",
+    en: "Tip: drag artists up/down in the list to change priority when sets overlap.",
+  },
+  tabDiscover: { no: "Oppdag", en: "Discover" },
+  discoverIntro: {
+    no: "Hør på artistene én og én. ✓ legger til, ✗ hopper over.",
+    en: "Listen to artists one by one. ✓ adds, ✗ skips.",
+  },
+  listenSpotify: { no: "Spill av på Spotify", en: "Play on Spotify" },
+  add: { no: "Legg til", en: "Add" },
+  skip: { no: "Hopp over", en: "Skip" },
+  back: { no: "Tilbake", en: "Back" },
+  reset: { no: "Start på nytt", en: "Reset" },
+  discoverDone: {
+    no: "Du har gått gjennom hele lineupen! 🎉",
+    en: "You went through the whole lineup! 🎉",
+  },
+  ofWord: { no: "av", en: "of" },
+  playsAt: { no: "Spiller på", en: "Plays on" },
+} as const;
+
+export type StringKey = keyof typeof STRINGS;
+export const t = (key: StringKey, lang: Lang) => STRINGS[key][lang];
